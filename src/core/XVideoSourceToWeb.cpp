@@ -174,6 +174,7 @@ namespace Private
 // On new image from video source - make a copy of it
 void VideoListener::OnNewImage( const shared_ptr<const XImage>& image )
 {
+    printf("Inside OnNewImage \n");
     lock_guard<mutex> lock( Owner->ImageGuard );
 
     Owner->InternalError = image->CopyDataOrClone( Owner->CameraImage );
@@ -200,6 +201,7 @@ void VideoListener::OnError( const string& errorMessage, bool /* fatal */ )
 // Handle JPEG request - provide current camera image
 void JpegRequestHandler::HandleHttpRequest( const IWebRequest& /* request */, IWebResponse& response )
 {
+    printf("JpegRequestHandler::HandleHttpRequest \n");
     if ( !Owner->IsError( ) )
     {
         Owner->EncodeCameraImage( );
@@ -224,7 +226,7 @@ void JpegRequestHandler::HandleHttpRequest( const IWebRequest& /* request */, IW
                              "Content-Length: %u\r\n"
                              "Cache-Control: no-store, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\n"
                              "\r\n",  Owner->JpegSize );
-    
+            
             response.Send( Owner->JpegBuffer, Owner->JpegSize );
         }
     }
@@ -233,6 +235,7 @@ void JpegRequestHandler::HandleHttpRequest( const IWebRequest& /* request */, IW
 // Handle MJPEG request - continuously provide camera images as MJPEG stream
 void MjpegRequestHandler::HandleHttpRequest( const IWebRequest& /* request */, IWebResponse& response )
 {
+    printf("JpegRequestHandler::HandleHttpRequest \n");
     uint32_t handlingTime = 0;
 
     if ( !Owner->IsError( ) )
