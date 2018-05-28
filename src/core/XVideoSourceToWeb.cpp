@@ -21,6 +21,9 @@
 #include <string.h>
 #include <mutex>
 #include <chrono>
+#include <iostream>
+#include <fstream>
+#include<string>
 
 // If we have C++14, then shared_timed_mutex is a better option for BufferGuard,
 // so it could allow one writer and multiple readers. However mongoose web server
@@ -34,6 +37,8 @@
 
 using namespace std;
 using namespace std::chrono;
+
+int file_name = 0;
 
 namespace Private
 {
@@ -174,7 +179,6 @@ namespace Private
 // On new image from video source - make a copy of it
 void VideoListener::OnNewImage( const shared_ptr<const XImage>& image )
 {
-    printf("Inside OnNewImage \n");
     lock_guard<mutex> lock( Owner->ImageGuard );
 
     Owner->InternalError = image->CopyDataOrClone( Owner->CameraImage );
@@ -201,7 +205,6 @@ void VideoListener::OnError( const string& errorMessage, bool /* fatal */ )
 // Handle JPEG request - provide current camera image
 void JpegRequestHandler::HandleHttpRequest( const IWebRequest& /* request */, IWebResponse& response )
 {
-    printf("JpegRequestHandler::HandleHttpRequest \n");
     if ( !Owner->IsError( ) )
     {
         Owner->EncodeCameraImage( );
@@ -226,8 +229,9 @@ void JpegRequestHandler::HandleHttpRequest( const IWebRequest& /* request */, IW
                              "Content-Length: %u\r\n"
                              "Cache-Control: no-store, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\n"
                              "\r\n",  Owner->JpegSize );
-            
+    
             response.Send( Owner->JpegBuffer, Owner->JpegSize );
+	    cout << "J Owner->JpegSize : " << Owner->JpegSize << "\n";
         }
     }
 }
@@ -235,7 +239,6 @@ void JpegRequestHandler::HandleHttpRequest( const IWebRequest& /* request */, IW
 // Handle MJPEG request - continuously provide camera images as MJPEG stream
 void MjpegRequestHandler::HandleHttpRequest( const IWebRequest& /* request */, IWebResponse& response )
 {
-    printf("JpegRequestHandler::HandleHttpRequest \n");
     uint32_t handlingTime = 0;
 
     if ( !Owner->IsError( ) )
@@ -275,6 +278,7 @@ void MjpegRequestHandler::HandleHttpRequest( const IWebRequest& /* request */, I
                              "\r\n",  Owner->JpegSize );
     
             response.Send( Owner->JpegBuffer, Owner->JpegSize );
+	    cout << "M Owner->JpegSize : " << Owner->JpegSize << "\n";
     
             // get final request handling time
             handlingTime += static_cast<uint32_t>( duration_cast<std::chrono::milliseconds>( steady_clock::now( ) - startTime ).count( ) );
@@ -316,7 +320,21 @@ void MjpegRequestHandler::HandleTimer( IWebResponse& response )
                              "Content-Type: image/jpeg\r\n"
                              "Content-Length: %u\r\n"
                              "\r\n",  Owner->JpegSize );
+	    //********* Read From File ********************************//
+
+
+	    //*********************************************************//
             response.Send( Owner->JpegBuffer, Owner->JpegSize );
+            cout << "H Owner->JpegSize : " << Owner->JpegSize << "\n";
+	    //********* File hits here *****************************//
+      
+ 	    ofstream myfile;
+            myfile.open ("/home/suhas/images/" + to_string(file_name) + ".jpg");
+            //myfile << "Writing this to a file.\n";
+	    myfile.write((char*)Owner->JpegBuffer,Owner->JpegSize);
+            myfile.close();
+	    file_name = file_name + 1;
+	    //*****************************************************//		
         }
 
         // get final request handling time
@@ -401,3 +419,4 @@ void XVideoSourceToWebData::EncodeCameraImage( )
 }
 
 } // namespace Private
+
