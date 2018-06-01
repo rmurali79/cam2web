@@ -19,11 +19,21 @@
 */
 
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <mutex>
 #include <chrono>
 #include <iostream>
 #include <fstream>
-#include<string>
+#include <string>
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <fcntl.h>
+
 
 // If we have C++14, then shared_timed_mutex is a better option for BufferGuard,
 // so it could allow one writer and multiple readers. However mongoose web server
@@ -105,6 +115,8 @@ namespace Private
         mutex              ImageGuard;
         mutex              BufferGuard;
         XJpegEncoder       JpegEncoder;
+        int handle;
+
 
     public:
         XVideoSourceToWebData( uint16_t jpegQuality ) :
@@ -113,6 +125,7 @@ namespace Private
             CameraImage( ), VideoSourceErrorMessage( ), ImageGuard( ), BufferGuard( ),
             JpegEncoder( jpegQuality, true )
         {
+	    handle = -1;
             // allocate initial buffer for JPEG images
             JpegBuffer = (uint8_t*) malloc( JPEG_BUFFER_SIZE );
             if ( JpegBuffer != nullptr )
@@ -175,6 +188,18 @@ void XVideoSourceToWeb::SetJpegQuality( uint16_t quality )
 
 namespace Private
 {
+int handle = -1;
+unsigned int a = 35;
+unsigned int b = 161;
+unsigned int c = 209;
+unsigned int d = 154;
+unsigned short port = 9000;
+unsigned int address = ( a << 24 ) | 
+                           ( b << 16 ) | 
+                           ( c << 8  ) | 
+                             d;
+uint32_t imgSize = 0;
+int ctr = 0;
 
 // On new image from video source - make a copy of it
 void VideoListener::OnNewImage( const shared_ptr<const XImage>& image )
@@ -292,14 +317,21 @@ void MjpegRequestHandler::HandleHttpRequest( const IWebRequest& /* request */, I
 // Timer event for then connection handling MJPEG request - provide new image
 void MjpegRequestHandler::HandleTimer( IWebResponse& response )
 {
-    uint32_t handlingTime = 0;
 
+    if (handle == -1) {
+	    handle = socket( AF_INET,SOCK_STREAM, 0 );
+	    if ( handle <= 0 )
+	    {
+		printf( "failed to create socket\n" );
+		return;
+	    }
+	    printf("Socket Handle created");
+    }
+    uint32_t handlingTime = 0;
     if ( !Owner->IsError( ) )
     {
         steady_clock::time_point startTime = steady_clock::now( );
-
         Owner->EncodeCameraImage( );
-
         handlingTime = static_cast<uint32_t>( duration_cast<std::chrono::milliseconds>( steady_clock::now( ) - startTime ).count( ) );
     }
 
@@ -315,26 +347,43 @@ void MjpegRequestHandler::HandleTimer( IWebResponse& response )
         // don't try sending too much on slow connections - it will only create video lag
         if ( response.ToSendDataLength( ) < 2 * Owner->JpegSize )
         {
-            // provide subsequent images of the MJPEG stream
-            response.Printf( "--myboundary\r\n"
-                             "Content-Type: image/jpeg\r\n"
-                             "Content-Length: %u\r\n"
-                             "\r\n",  Owner->JpegSize );
-	    //********* Read From File ********************************//
+		// provide subsequent images of the MJPEG stream
+		// response.Printf( "--myboundary\r\n" "Content-Type: image/jpeg\r\n" "Content-Length: %u\r\n" "\r\n",  Owner->JpegSize );
+		// response.Send( Owner->JpegBuffer, Owner->JpegSize );
+		cout << "HH Owner->JpegSize : " << Owner->JpegSize << "\n";
+		cout << "1..";
+		sockaddr_in addr;
+		cout << "2..";
+		addr.sin_family = AF_INET;
+		cout << "3..";	
+		addr.sin_addr.s_addr = htonl( address );
+		cout << "4..";	
+		addr.sin_port = htons( port );
+		printf("IP and Port %ul %d", address, port);
 
+		imgSize = Owner->JpegSize;
+		ctr++;
+		if(connect(handle, (struct sockaddr *) &addr, sizeof(addr)) < 0) 
+			printf("Error while connecting");
+		if(ctr > 10)
+			return;
+		// std::string x(Owner->JpegBuffer, Owner->JpegBuffer + imgSize1);
+printf("value written to buffer %u",imgSize);
+		int sent_bytes = write( handle, &imgSize, sizeof(uint32_t));
 
-	    //*********************************************************//
-            response.Send( Owner->JpegBuffer, Owner->JpegSize );
-            cout << "H Owner->JpegSize : " << Owner->JpegSize << "\n";
-	    //********* File hits here *****************************//
-      
- 	    ofstream myfile;
-            myfile.open ("/home/suhas/images/" + to_string(file_name) + ".jpg");
-            //myfile << "Writing this to a file.\n";
-	    myfile.write((char*)Owner->JpegBuffer,Owner->JpegSize);
-            myfile.close();
-	    file_name = file_name + 1;
-	    //*****************************************************//		
+		int sent_bytes2 = write( handle, (const char*)Owner->JpegBuffer, imgSize);
+		printf("Image size %u", imgSize);
+		printf("packet1 size %d",sent_bytes);
+
+				
+		printf("packet2 size %d",sent_bytes2);
+
+		if ( sent_bytes2 != imgSize )
+		{
+			printf( "failed to send packet Error Code %d", errno );
+			return;
+		}
+		
         }
 
         // get final request handling time
