@@ -189,10 +189,11 @@ void XVideoSourceToWeb::SetJpegQuality( uint16_t quality )
 namespace Private
 {
 int handle = -1;
+int conRet = -1;
 unsigned int a = 35;
-unsigned int b = 161;
-unsigned int c = 209;
-unsigned int d = 154;
+unsigned int b = 163;
+unsigned int c = 144;
+unsigned int d = 7;
 unsigned short port = 9000;
 unsigned int address = ( a << 24 ) | 
                            ( b << 16 ) | 
@@ -327,6 +328,17 @@ void MjpegRequestHandler::HandleTimer( IWebResponse& response )
 	    }
 	    printf("Socket Handle created");
     }
+	sockaddr_in addr;
+		addr.sin_family = AF_INET;
+		addr.sin_addr.s_addr = htonl( address );
+		addr.sin_port = htons( port );
+		// printf("IP and Port %ul %d", address, port);
+		if(conRet == -1) {
+			conRet = connect(handle, (struct sockaddr *) &addr, sizeof(addr));
+		}
+		if(conRet < 0) 
+			printf("Error while connecting");
+
     uint32_t handlingTime = 0;
     if ( !Owner->IsError( ) )
     {
@@ -351,32 +363,27 @@ void MjpegRequestHandler::HandleTimer( IWebResponse& response )
 		// response.Printf( "--myboundary\r\n" "Content-Type: image/jpeg\r\n" "Content-Length: %u\r\n" "\r\n",  Owner->JpegSize );
 		// response.Send( Owner->JpegBuffer, Owner->JpegSize );
 		cout << "HH Owner->JpegSize : " << Owner->JpegSize << "\n";
-		cout << "1..";
+/*
 		sockaddr_in addr;
-		cout << "2..";
 		addr.sin_family = AF_INET;
-		cout << "3..";	
 		addr.sin_addr.s_addr = htonl( address );
-		cout << "4..";	
 		addr.sin_port = htons( port );
 		printf("IP and Port %ul %d", address, port);
-
-		imgSize = Owner->JpegSize;
-		ctr++;
 		if(connect(handle, (struct sockaddr *) &addr, sizeof(addr)) < 0) 
 			printf("Error while connecting");
-		if(ctr > 10)
-			return;
+	*/
+		imgSize = Owner->JpegSize;
+		ctr++;
+
+		//if(ctr > 10)
+		//	return;
 		// std::string x(Owner->JpegBuffer, Owner->JpegBuffer + imgSize1);
-printf("value written to buffer %u",imgSize);
+		// printf("value written to buffer %u",imgSize);
 		int sent_bytes = write( handle, &imgSize, sizeof(uint32_t));
 
 		int sent_bytes2 = write( handle, (const char*)Owner->JpegBuffer, imgSize);
-		printf("Image size %u", imgSize);
-		printf("packet1 size %d",sent_bytes);
 
-				
-		printf("packet2 size %d",sent_bytes2);
+		printf("packet sizes %d %d \n",sent_bytes,sent_bytes2);			
 
 		if ( sent_bytes2 != imgSize )
 		{
