@@ -22,7 +22,9 @@
 #include <mutex>
 #include <thread>
 #include <chrono>
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <iostream>
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -71,7 +73,7 @@ namespace Private
             Sync( ), ConfigSync( ), ControlThread( ), NeedToStop( ), Listener( nullptr ), Running( false ),
             VideoFd( -1 ), VideoStreamingActive( false ), MappedBuffers( ), MappedBufferLength( ), PropertiesToSet( ),
             VideoDevice( 0 ),
-            FramesReceived( 0 ), FrameWidth( 640 ), FrameHeight( 480 ), FrameRate( 30 ), JpegEncoding( true )
+            FramesReceived( 0 ), FrameWidth( 640 ), FrameHeight( 480 ), FrameRate( 20 ), JpegEncoding( true )
         {
         }
 
@@ -586,6 +588,9 @@ void XV4LCameraData::VideoCaptureLoop( )
     uint32_t    sleepTime = 0;
     uint32_t    frameTime = 1000 / FrameRate;
     uint32_t    handlingTime ;
+    uint32_t    handlingTime1 ;
+    uint32_t    handlingTime2 ;
+    uint32_t    handlingTime3 ;
     int         ecode;
 
     // If JPEG encoding is used, client is notified with an image wrapping a mapped buffer.
@@ -606,7 +611,7 @@ void XV4LCameraData::VideoCaptureLoop( )
     // acquire images untill we've been told to stop
     while ( !NeedToStop.Wait( sleepTime ) )
     {
-        steady_clock::time_point startTime = steady_clock::now( );
+        // steady_clock::time_point startTime = steady_clock::now( );
 
         // dequeue buffer
         memset( &videoBuffer, 0, sizeof( videoBuffer ) );
@@ -615,6 +620,7 @@ void XV4LCameraData::VideoCaptureLoop( )
         videoBuffer.memory = V4L2_MEMORY_MMAP;
 
         ecode = ioctl( VideoFd, VIDIOC_DQBUF, &videoBuffer );
+        // handlingTime1 = static_cast<uint32_t>( duration_cast<milliseconds>( steady_clock::now( ) - startTime ).count( ) );
         if ( ecode < 0 )
         {
             NotifyError( "Failed to dequeue capture buffer" );
@@ -622,12 +628,11 @@ void XV4LCameraData::VideoCaptureLoop( )
         else
         {
             shared_ptr<XImage> image;
-
             FramesReceived++;
-
             if ( JpegEncoding )
             {
                 image = XImage::Create( MappedBuffers[videoBuffer.index], videoBuffer.bytesused, 1, videoBuffer.bytesused, XPixelFormat::JPEG );
+                // handlingTime2 = static_cast<uint32_t>( duration_cast<milliseconds>( steady_clock::now( ) - startTime ).count( ) );
             }
             else
             {
@@ -638,6 +643,7 @@ void XV4LCameraData::VideoCaptureLoop( )
             if ( image )
             {
                 NotifyNewImage( image );
+                // handlingTime3 = static_cast<uint32_t>( duration_cast<milliseconds>( steady_clock::now( ) - startTime ).count( ) );
             }
             else
             {
@@ -652,8 +658,9 @@ void XV4LCameraData::VideoCaptureLoop( )
             }
         }
 
-        handlingTime = static_cast<uint32_t>( duration_cast<milliseconds>( steady_clock::now( ) - startTime ).count( ) );
-        sleepTime    = ( handlingTime > frameTime ) ? 0 : ( frameTime - handlingTime );
+        // handlingTime = static_cast<uint32_t>( duration_cast<milliseconds>( steady_clock::now( ) - startTime ).count( ) );
+        sleepTime    = 0; // ( handlingTime > frameTime ) ? 0 : ( frameTime - handlingTime );
+        // cout << "Handling Times > [" << handlingTime1 << "][" << handlingTime2 << "][" << handlingTime3 << "][" << handlingTime << "]\n";
     }
 }
 
